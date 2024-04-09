@@ -31,7 +31,7 @@ const mr = function(config) {
         out = null;
       }
 
-      let memory = configuration.memory ? 'mem' : 'store';
+      let memory = configuration.memory ? 'mem' : 'mem';
 
       let compactor = configuration.compact ? configuration.compact : null;
       
