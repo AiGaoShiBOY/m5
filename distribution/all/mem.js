@@ -72,10 +72,16 @@ const mem = function(config) {
           const targetIdx = nids.indexOf(expectedHash);
           const targetNode = nodesArray[targetIdx];
 
-          const keyWithGid = {
-            key: key,
-            gid: context.gid,
-          };
+          let keyWithGid;
+
+          if (typeof key === 'string') {
+            keyWithGid = {
+              key: key,
+              gid: context.gid,
+            };
+          } else {
+            keyWithGid = key;
+          }
           const message = [keyWithGid];
           const remoteWithNode = {
             node: {ip: targetNode.ip, port: targetNode.port},
@@ -128,10 +134,16 @@ const mem = function(config) {
         const targetIdx = nids.indexOf(expectedHash);
         const targetNode = nodesArray[targetIdx];
 
-        const keyWithGid = {
-          key: key,
-          gid: context.gid,
-        };
+        let keyWithGid;
+
+        if (typeof key === 'string') {
+          keyWithGid = {
+            key: key,
+            gid: context.gid,
+          };
+        } else {
+          keyWithGid = key;
+        }
 
         const message = [keyWithGid];
         const remoteWithNode = {
@@ -151,54 +163,54 @@ const mem = function(config) {
         });
       });
     },
-    append: function(value, key, callback){
-        callback = callback || function() {};
-        distribution.local.groups.get(context.gid, (e, v) => {
-            if (e) {
+    append: function(value, key, callback) {
+      callback = callback || function() {};
+      distribution.local.groups.get(context.gid, (e, v) => {
+        if (e) {
+          callback(e, null);
+          return;
+        }
+        // get all the nodes
+        const nodesArray = Object.values(v);
+        const nids = nodesArray.map((node) => id.getNID(node));
+
+        // get the hash of the value
+        // if the key is null, do multiple hash;
+        if (!key) {
+          key = id.getID(value);
+        }
+        const kid = id.getID(key);
+        const expectedHash = context.hash(kid, nids.slice());
+
+        const targetIdx = nids.indexOf(expectedHash);
+        const targetNode = nodesArray[targetIdx];
+
+        let keyWithGid;
+
+        if (typeof key === 'string') {
+          keyWithGid = {
+            key: key,
+            gid: context.gid,
+          };
+        } else {
+          keyWithGid = key;
+        }
+
+        const message = [value, keyWithGid];
+        const remoteWithNode = {
+          node: {ip: targetNode.ip, port: targetNode.port},
+          service: 'mem',
+          method: 'append',
+        };
+        distribution.local.comm.send(message, remoteWithNode, (e, v) => {
+          if (e) {
             callback(e, null);
             return;
-            }
-            // get all the nodes
-            const nodesArray = Object.values(v);
-            const nids = nodesArray.map((node) => id.getNID(node));
-
-            // get the hash of the value
-            // if the key is null, do multiple hash;
-            if (!key) {
-            key = id.getID(value);
-            }
-            const kid = id.getID(key);
-            const expectedHash = context.hash(kid, nids.slice());
-
-            const targetIdx = nids.indexOf(expectedHash);
-            const targetNode = nodesArray[targetIdx];
-            
-            let keyWithGid;
-
-            if(typeof key === 'string'){
-                keyWithGid = {
-                    key: key,
-                    gid: context.gid,
-                }
-            }else{
-                keyWithGid = key;
-            }
-            
-            const message = [value, keyWithGid];
-            const remoteWithNode = {
-            node: {ip: targetNode.ip, port: targetNode.port},
-            service: 'mem',
-            method: 'append',
-            };
-            distribution.local.comm.send(message, remoteWithNode, (e, v) => {
-            if (e) {
-                callback(e, null);
-                return;
-            }
-            callback(null, v);
-            return;
-            });
+          }
+          callback(null, v);
+          return;
         });
+      });
     },
     reconf: function(originalGroup, callback) {
       callback = callback || function() {};

@@ -26,11 +26,10 @@ const n2 = {ip: '127.0.0.1', port: 7111};
 const n3 = {ip: '127.0.0.1', port: 7112};
 
 beforeAll((done) => {
-
   const directoryPath = path.join(__dirname, '../store');
-  
-  fs.rmSync(directoryPath, { recursive: true, force: true });
-  
+
+  fs.rmSync(directoryPath, {recursive: true, force: true});
+
   fs.mkdirSync(directoryPath);
 
 
@@ -159,14 +158,15 @@ test('In-memory map reduce', (done) => {
       }
 
       /* initialize config with memory */
-      distribution.dlib.mr.exec({keys: v, map: m2, reduce: r2, memory: true}, (e, v) => {
-        try {
-          expect(v).toEqual(expect.arrayContaining(expected));
-          done();
-        } catch (e) {
-          done(e);
-        }
-      });
+      distribution.dlib.mr
+          .exec({keys: v, map: m2, reduce: r2, memory: true}, (e, v) => {
+            try {
+              expect(v).toEqual(expect.arrayContaining(expected));
+              done();
+            } catch (e) {
+              done(e);
+            }
+          });
     });
   };
 
@@ -204,17 +204,18 @@ test('map-reduce with compactor', (done) => {
 
   let r3 = (key, values) => {
     let out = {};
-    out[key] = values.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
+    out[key] = values
+        .reduce((accumulator, currentValue) => accumulator + currentValue, 0);
     return out;
   };
 
   const c1 = (arr) =>{
-    console.log("arr", arr);
-    if(typeof arr === "object"){
+    console.log('arr', arr);
+    if (typeof arr === 'object') {
       return arr;
-    }else{
+    } else {
       const result = {};
-      arr.forEach(item => {
+      arr.forEach((item) => {
         for (const key in item) {
           if (result.hasOwnProperty(key)) {
             result[key] += item[key];
@@ -223,9 +224,9 @@ test('map-reduce with compactor', (done) => {
           }
         }
       });
-      return Object.keys(result).map(key => ({ [key]: result[key]}));
+      return Object.keys(result).map((key) => ({[key]: result[key]}));
     }
-  }
+  };
 
 
   let dataset = [
@@ -251,15 +252,6 @@ test('map-reduce with compactor', (done) => {
   ];
 
 
-
-  const arr = expected.map(obj => {
-    const newObj = {};
-    for (const key in obj) {
-      newObj[key] = obj[key] * 2;
-    }
-    return newObj;
-  });
-
   /* Sanity check: map and reduce locally */
   sanityCheck(m2, r3, dataset, expected, done);
 
@@ -273,14 +265,16 @@ test('map-reduce with compactor', (done) => {
       }
 
       /* initialize config with compactor */
-      distribution.dlib.mr.exec({keys: v, map: m2, reduce: r3, memory: true, compact: c1}, (e, v) => {
-        try {
-          expect(v).toEqual(expect.arrayContaining(arr));
-          done();
-        } catch (e) {
-          done(e);
-        }
-      });
+      distribution.dlib.mr
+          .exec({keys: v, map: m2, reduce: r3, memory: true, compact: c1},
+              (e, v) => {
+                try {
+                  expect(v).toEqual(expect.arrayContaining(expected));
+                  done();
+                } catch (e) {
+                  done(e);
+                }
+              });
     });
   };
 
@@ -345,13 +339,6 @@ test('persistence', (done) => {
     {'despair,': 1},
   ];
 
-  const arr = expected.map(obj => {
-    const newObj = {};
-    for (const key in obj) {
-      newObj[key] = obj[key] * 3;
-    }
-    return newObj;
-  });
 
   /* Sanity check: map and reduce locally */
   sanityCheck(m2, r2, dataset, expected, done);
@@ -366,14 +353,17 @@ test('persistence', (done) => {
       }
 
       /* initialize config with memory */
-      distribution.dlib.mr.exec({keys: v, map: m2, reduce: r2, memory: true, out: 'persistence-test'}, (e, v) => {
-        try {
-          expect(v).toEqual(expect.arrayContaining(arr));
-          done();
-        } catch (e) {
-          done(e);
-        }
-      });
+      distribution.dlib.mr
+          .exec(
+              {keys: v, map: m2, reduce: r2,
+                memory: true, out: 'persistence-test'}, (e, v) => {
+                try {
+                  expect(v).toEqual(expect.arrayContaining(expected));
+                  done();
+                } catch (e) {
+                  done(e);
+                }
+              });
     });
   };
 
@@ -394,23 +384,158 @@ test('persistence', (done) => {
 });
 
 
-// test('(0 pts) sample test', () => {
-//   const t = true;
-//   expect(t).toBe(true);
-// });
-// test('(0 pts) sample test', () => {
-//   const t = true;
-//   expect(t).toBe(true);
-// });
-// test('(0 pts) sample test', () => {
-//   const t = true;
-//   expect(t).toBe(true);
-// });
-// test('(0 pts) sample test', () => {
-//   const t = true;
-//   expect(t).toBe(true);
-// });
-// test('(0 pts) sample test', () => {
-//   const t = true;
-//   expect(t).toBe(true);
-// });
+// test functionality: change reducer for ncdc
+test('functionality: change reducer for ncdc', (done) => {
+  let m1 = (key, value) => {
+    let words = value.split(/(\s+)/).filter((e) => e !== ' ');
+    console.log(words);
+    let out = {};
+    out[words[1]] = parseInt(words[3]);
+    return out;
+  };
+
+  let r1 = (key, values) => {
+    let out = {};
+    out[key] = values.reduce((a, b) => Math.min(a, b), Infinity);
+    return out;
+  };
+
+  let dataset = [
+    {'000': '006701199099999 1950 0515070049999999N9 +0000 1+9999'},
+    {'106': '004301199099999 1950 0515120049999999N9 +0022 1+9999'},
+    {'212': '004301199099999 1950 0515180049999999N9 -0011 1+9999'},
+    {'318': '004301265099999 1949 0324120040500001N9 +0111 1+9999'},
+    {'424': '004301265099999 1949 0324180040500001N9 +0078 1+9999'},
+  ];
+
+  let expected = [{'1950': -11}, {'1949': 78}];
+
+  /* Sanity check: map and reduce locally */
+  sanityCheck(m1, r1, dataset, expected, done);
+
+  /* Now we do the same thing but on the cluster */
+  const doMapReduce = (cb) => {
+    distribution.ncdc.store.get(null, (e, v) => {
+      try {
+        expect(v.length).toBe(dataset.length);
+      } catch (e) {
+        done(e);
+      }
+
+
+      distribution.ncdc.mr.exec({keys: v, map: m1, reduce: r1}, (e, v) => {
+        try {
+          expect(v).toEqual(expect.arrayContaining(expected));
+          done();
+        } catch (e) {
+          done(e);
+        }
+      });
+    });
+  };
+
+  let cntr = 0;
+
+  // We send the dataset to the cluster
+  dataset.forEach((o) => {
+    let key = Object.keys(o)[0];
+    let value = o[key];
+    distribution.ncdc.store.put(value, key, (e, v) => {
+      cntr++;
+      // Once we are done, run the map reduce
+      if (cntr === dataset.length) {
+        doMapReduce();
+      }
+    });
+  });
+});
+
+// test functionality: change the reducer for dlib
+
+test('functionality: change the reducer for dlib', (done) => {
+  let m2 = (key, value) => {
+    // map each word to a key-value pair like {word: 1}
+    let words = value.split(/(\s+)/).filter((e) => e !== ' ');
+    let out = [];
+    words.forEach((w) => {
+      let o = {};
+      o[w] = 1;
+      out.push(o);
+    });
+    return out;
+  };
+
+  let r3 = (key, values) => {
+    let out = {};
+    const length = values.length;
+    out[key] = values
+        .reduce((accumulator, currentValue) => accumulator + currentValue, 0)/
+        length;
+    return out;
+  };
+
+
+  let dataset = [
+    {'b1-l1': 'It was the best of times, it was the worst of times,'},
+    {'b1-l2': 'it was the age of wisdom, it was the age of foolishness,'},
+    {'b1-l3': 'it was the epoch of belief, it was the epoch of incredulity,'},
+    {'b1-l4': 'it was the season of Light, it was the season of Darkness,'},
+    {'b1-l5': 'it was the spring of hope, it was the winter of despair,'},
+  ];
+
+  let expected = [
+    {It: 1}, {was: 1},
+    {the: 1}, {best: 1},
+    {of: 1}, {'times,': 1},
+    {it: 1}, {worst: 1},
+    {age: 1}, {'wisdom,': 1},
+    {'foolishness,': 1}, {epoch: 1},
+    {'belief,': 1}, {'incredulity,': 1},
+    {season: 1}, {'Light,': 1},
+    {'Darkness,': 1}, {spring: 1},
+    {'hope,': 1}, {winter: 1},
+    {'despair,': 1},
+  ];
+
+
+  /* Sanity check: map and reduce locally */
+  sanityCheck(m2, r3, dataset, expected, done);
+
+  /* Now we do the same thing but on the cluster */
+  const doMapReduce = (cb) => {
+    distribution.dlib.store.get(null, (e, v) => {
+      try {
+        expect(v.length).toBe(dataset.length);
+      } catch (e) {
+        done(e);
+      }
+
+      /* initialize config with compactor */
+      distribution.dlib.mr
+          .exec({keys: v, map: m2, reduce: r3, memory: true}, (e, v) => {
+            try {
+              expect(v).toEqual(expect.arrayContaining(expected));
+              done();
+            } catch (e) {
+              done(e);
+            }
+          });
+    });
+  };
+
+  let cntr = 0;
+
+  // We send the dataset to the cluster
+  dataset.forEach((o) => {
+    let key = Object.keys(o)[0];
+    let value = o[key];
+    distribution.dlib.store.put(value, key, (e, v) => {
+      cntr++;
+      // Once we are done, run the map reduce
+      if (cntr === dataset.length) {
+        doMapReduce();
+      }
+    });
+  });
+});
+

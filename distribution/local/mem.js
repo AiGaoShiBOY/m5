@@ -87,39 +87,39 @@ mem.del = function(key, callback) {
   return;
 };
 
-mem.append = function(value, key, callback){
-    callback = callback || function() {};
-    let realKey;
-    let gid;
-    if (typeof key === 'string' || !key) {
-        realKey = key || id.getID(value);
-        gid = 'local';
+mem.append = function(value, key, callback) {
+  callback = callback || function() {};
+  let realKey;
+  let gid;
+  if (typeof key === 'string' || !key) {
+    realKey = key || id.getID(value);
+    gid = 'local';
+  } else {
+    realKey = key.key || id.getID(value);
+    gid = key.gid;
+  }
+  let localMap;
+  if (global.localMapSet.has(gid)) {
+    localMap = global.localMapSet.get(gid);
+  } else {
+    global.localMapSet.set(gid, new Map());
+    localMap = global.localMapSet.get(gid);
+  }
+  if (localMap.has(realKey)) {
+    const originalData = localMap.get(realKey);
+    let newData;
+    if (!Array.isArray(originalData)) {
+      newData = [originalData, value];
     } else {
-        realKey = key.key || id.getID(value);
-        gid = key.gid;
+      newData = [...originalData, value];
     }
-    let localMap;
-    if (global.localMapSet.has(gid)) {
-        localMap = global.localMapSet.get(gid);
-    } else {
-        global.localMapSet.set(gid, new Map());
-        localMap = global.localMapSet.get(gid);
-    }
-    if(localMap.has(realKey)){
-        const originalData = localMap.get(realKey);
-        let newData;
-        if (!Array.isArray(originalData)) {
-            newData = [originalData, value];
-        } else {
-            newData = [...originalData, value];
-        }
-        localMap.set(realKey, newData);
-        callback(null, newData);
-        return;
-    }
-    localMap.set(realKey, [value]);
-    callback(null, [value]);
+    localMap.set(realKey, newData);
+    callback(null, newData);
     return;
-}
+  }
+  localMap.set(realKey, [value]);
+  callback(null, [value]);
+  return;
+};
 
 module.exports = mem;
