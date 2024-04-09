@@ -1,5 +1,8 @@
 const distribution = require('../../distribution');
+const { store } = require('../local/local');
 const {id, serialize, deserialize, log} = require('../util/util');
+const fs = require('fs');
+const path = require('path');
 
 const mr = function(config) {
   let context = {};
@@ -21,29 +24,59 @@ const mr = function(config) {
       if(!reducer){
         callback(new Error('Configuration invalid', null));
       }
+
       const mrId = 'mr' + id.getSID(configuration);
+      let out = configuration.out;
+      if(!out){
+        out = null;
+      }
+
+      let memory = configuration.memory ? 'mem' : 'store';
+
+      let compactor = configuration.compact ? configuration.compact : null;
       
       const mrService = {
         map: mapWrapper,
+        shuffle: shuffleWrapper,
+        reduce: reduceWrapper,
       }
 
       distribution[context.gid].routes.put(mrService, mrId, (e, v)=>{
-        const message = [keys, context.gid, mapper];
+        const message = [keys, context.gid, mapper, memory];
         const remote = {
           service: mrId,
           method: 'map',
         };
-        log(JSON.stringify(e) + JSON.stringify(v));
         distribution[context.gid].comm.send(message, remote, (e, v) =>{
-          log(JSON.stringify(e) + JSON.stringify(v));
-          callback(null, []);
-        })
+          const message = [keys, context.gid, memory, compactor];
+          const remote = {
+            service: mrId,
+            method: 'shuffle'
+          }
+          distribution[context.gid].comm.send(message, remote, (e, v) => {
+            const values = Object.values(v);
+            const flattenedValues = values.flat();
+            const keySet = new Set(flattenedValues);
+            const mappedKeys = [...keySet];
+            const message = [mappedKeys, context.gid, reducer, out, memory];
+            const remote = {
+              service: mrId,
+              method: 'reduce',
+            }
+            distribution[context.gid].comm.send(message, remote, (e,v)=>{
+              const values = Object.values(v);
+              const nonEmptyResults = values.filter(arr => arr && arr.length > 0);
+              const result = nonEmptyResults.flat();
+              callback(null, result);
+            });
+          })
+        });
       });
     },
   };
 };
 
-const mapWrapper = function(keys, gid, mapper, callback){
+const mapWrapper = function(keys, gid, mapper, memory, callback){
   let cnt = keys.length;
   // for every key 
   keys.forEach(key => {
@@ -54,20 +87,113 @@ const mapWrapper = function(keys, gid, mapper, callback){
         // apply the mapper on the data
         const mappedData = mapper(key, v);
         // store the data 
-        global.distribution.local.store.put(mappedData, {key: key, gid: gid}, (e, v)=>{
+        global.distribution.local[memory].put(mappedData, {key: key, gid: gid}, (e, v)=>{
           cnt--;
           if(cnt === 0){
             callback(null, 1);
+            return;
           }
         })
       }else{
         cnt--;
         if(cnt === 0){
           callback(null, 1);
+          return;
         }
       }
     })
   });
 };
+
+const shuffleWrapper = function(keys, gid, memory, compactor, callback){
+  let cnt = keys.length;
+  let keySet = [];
+  
+  keys.forEach(key => {
+    // get the key from local storage
+    global.distribution.local[memory].get({key:key, gid:gid}, (e, v) => {
+      // currently, key is 000 and value is [{1950, 0}]
+      if(v){
+        let value;
+        if(compactor){
+          console.log("v before ", v);
+          value = compactor(v);
+          console.log("v after ", value);
+        }else{
+          value = v;
+        }
+        if(Array.isArray(value)){
+          let cnt2 = value.length;
+          for(const obj of value){
+            let [newKey, newVal] = Object.entries(obj)[0];
+            console.log("newKeyIs", newKey, newVal);
+            keySet.push(newKey);
+            global.distribution[gid][memory].append(newVal, newKey, (e,v) => {
+              cnt2--;
+              if(cnt2 === 0){
+                cnt--;
+                if(cnt === 0){
+                  callback(null, keySet);
+                }
+              }
+            });
+          }
+        }else{
+          let[newKey, newVal] = Object.entries(value)[0];
+          console.log("newKey before compactor", newKey, newVal);
+          keySet.push(newKey);
+          global.distribution[gid][memory].append(newVal, newKey, (e,v) => {
+              cnt--;
+              if(cnt === 0){
+                callback(null, keySet);
+              }
+          });
+        }
+      }else{
+        cnt--;
+        if(cnt === 0){
+          callback(null, keySet);
+          return;
+        }
+      }
+    });
+  });
+}
+
+const reduceWrapper = function(keys, gid, reducer, out, memory, callback){
+  let cnt = keys.length;
+  let resultArr = [];
+  console.log(keys);
+  keys.forEach(key => {
+    global.distribution.local[memory].get({key:key, gid:gid}, (e, v)=>{
+      // get the value from storage 
+      if(v){
+        const reduceRes = reducer(key, v);
+        //store the res to out group
+        if(out){
+          global.distribution[gid][memory].append(reduceRes, {key: key, gid: out}, (e, v) => {
+            cnt--;
+            resultArr.push(reduceRes);
+            if(cnt === 0){
+              callback(null, resultArr);
+            }
+          })
+        }else{
+          cnt--;
+          resultArr.push(reduceRes);
+          if(cnt === 0){
+            callback(null, resultArr);
+          }
+        }
+      }else{
+        cnt--;
+        if(cnt === 0){
+          callback(null, resultArr);
+        }
+      }
+    })
+  })
+  
+}
 
 module.exports = mr;
